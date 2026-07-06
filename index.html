@@ -495,9 +495,34 @@
   .icon-btn.move-btn:hover{color:var(--accent);}
   .card.compact .icon-btn{font-size:14px;padding:4px 7px;min-width:26px;min-height:26px;}
 
-  .priority-dot{
-    width:7px;height:7px;border-radius:50%;
-    background:var(--accent-pink);
+  .card.urgent-card{
+    background:linear-gradient(135deg, rgba(232,180,200,.09), var(--panel) 55%);
+    box-shadow:0 4px 14px var(--shadow), 0 0 0 1px rgba(232,180,200,.35);
+    animation:urgentGlow 2.6s ease-in-out infinite;
+  }
+  .card.urgent-card:hover{
+    box-shadow:0 10px 24px var(--shadow), 0 0 0 1px rgba(232,180,200,.5), 0 0 26px -6px var(--accent-pink);
+  }
+  @keyframes urgentGlow{
+    0%,100%{box-shadow:0 4px 14px var(--shadow), 0 0 0 1px rgba(232,180,200,.35);}
+    50%{box-shadow:0 4px 14px var(--shadow), 0 0 0 1px rgba(232,180,200,.7), 0 0 16px -2px rgba(232,180,200,.5);}
+  }
+
+  .urgent-badge{
+    font-family:var(--mono);
+    font-size:9px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--accent-pink);
+    background:rgba(232,180,200,.16);
+    padding:3px 7px 3px 6px;
+    border-radius:9px;
+    display:inline-flex;
+    align-items:center;
+    gap:3px;
+    white-space:nowrap;
+  }
+  .urgent-badge svg{width:10px; height:10px; flex-shrink:0;}
     position:absolute;
     top:13px;right:13px;
     animation:dotPulse 1.8s ease-in-out infinite;
@@ -1206,18 +1231,16 @@
 
   function makeCard(task){
     if(task.id === editingId) return makeEditCard(task);
+    const isUrgent = task.priority && task.status !== 'done';
     const card = document.createElement('div');
-    card.className = 'card' + (task.status==='done' ? ' done-card' : '') + (settings.compact ? ' compact' : '');
+    card.className = 'card'
+      + (task.status==='done' ? ' done-card' : '')
+      + (settings.compact ? ' compact' : '')
+      + (isUrgent ? ' urgent-card' : '');
     card.draggable = true;
     card.dataset.id = task.id;
     const subj = subjectOf(task.subject);
     card.style.setProperty('--subj-color', subj.color);
-
-    if(task.priority && task.status !== 'done'){
-      const dot = document.createElement('div');
-      dot.className = 'priority-dot';
-      card.appendChild(dot);
-    }
 
     const top = document.createElement('div');
     top.className = 'card-top';
@@ -1225,6 +1248,12 @@
     tag.className = 'tag';
     tag.innerHTML = '<span class="dot"></span>' + subj.label;
     top.appendChild(tag);
+    if(isUrgent){
+      const badge = document.createElement('span');
+      badge.className = 'urgent-badge';
+      badge.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>urgent';
+      top.appendChild(badge);
+    }
     card.appendChild(top);
 
     const text = document.createElement('div');

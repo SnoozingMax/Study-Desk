@@ -1651,7 +1651,12 @@
 
   /* ---- Games ---- */
   document.getElementById('gamesBtn').addEventListener('click', ()=>{
-    window.open('https://brawlstars.com', '_blank', 'noopener');
+    const a = document.createElement('a');
+    a.href = 'https://brawlstars.com';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   });
 
   /* ---- Custom calendar picker ---- */

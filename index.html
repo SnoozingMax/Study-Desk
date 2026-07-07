@@ -78,7 +78,7 @@
   body.no-animations .blob{animation:none;}
   body.no-animations *{animation-duration:0s !important; transition-duration:.05s !important;}
 
-  .wrap{max-width:1040px;margin:0 auto;padding:30px 22px 80px;position:relative;z-index:1;}
+  .wrap{max-width:1040px;margin:0 auto;padding:calc(42px + env(safe-area-inset-top)) 22px 80px;position:relative;z-index:1;}
 
   /* ---- Header ---- */
   header{

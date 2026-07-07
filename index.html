@@ -964,7 +964,7 @@
       </svg>
     </button>
 
-    <button class="nav-btn" id="gamesBtn" title="brawl stars" aria-label="Open Brawl Stars">
+    <button class="nav-btn" id="gamesBtn" title="polytrack" aria-label="Open PolyTrack">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <line x1="6" y1="12" x2="10" y2="12"></line>
         <line x1="8" y1="10" x2="8" y2="14"></line>
@@ -1651,12 +1651,7 @@
 
   /* ---- Games ---- */
   document.getElementById('gamesBtn').addEventListener('click', ()=>{
-    const a = document.createElement('a');
-    a.href = 'https://brawlstars.com';
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    window.open('https://kodub.itch.io/polytrack', '_blank', 'noopener');
   });
 
   /* ---- Custom calendar picker ---- */

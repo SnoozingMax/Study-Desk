@@ -750,15 +750,44 @@
     transition:transform .22s ease, opacity .22s ease;
   }
   .timer-panel.open{transform:translateY(0) scale(1); opacity:1; pointer-events:auto;}
+  .timer-panel-head-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:8px;
+  }
   .timer-panel-head{
     font-family:var(--mono); font-size:10px; letter-spacing:.08em;
     color:var(--cream-faint); text-transform:uppercase;
-    text-align:center; margin-bottom:8px;
   }
+  .sound-toggle{
+    background:none; border:none; color:var(--cream-faint);
+    cursor:pointer; padding:2px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    transition:color .15s;
+  }
+  .sound-toggle svg{width:15px; height:15px;}
+  .sound-toggle:hover{color:var(--accent);}
+  .sound-toggle.muted{color:var(--cream-faint); opacity:.55;}
   .timer-display{
     font-family:var(--display); font-weight:700; font-size:34px;
     color:var(--cream); text-align:center; letter-spacing:.02em;
+    margin-bottom:10px;
+  }
+  .timer-stepper{
+    display:flex; align-items:center; justify-content:center; gap:14px;
     margin-bottom:12px;
+  }
+  .stepper-btn{
+    width:26px; height:26px; border-radius:50%;
+    background:var(--bg-soft); border:none; color:var(--cream-soft);
+    font-family:var(--mono); font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s, color .15s;
+  }
+  .stepper-btn:hover{color:var(--accent); background:rgba(240,149,75,.14);}
+  .stepper-btn:active{transform:scale(.92);}
+  .stepper-value{
+    font-family:var(--mono); font-size:11px; color:var(--cream-soft);
+    min-width:52px; text-align:center;
   }
   .timer-presets{display:flex; gap:6px; justify-content:center; margin-bottom:14px;}
   .preset-btn{
@@ -923,8 +952,22 @@
 <div class="bottom-nav-wrap">
 
   <div class="timer-panel" id="timerPanel">
-    <div class="timer-panel-head">focus timer</div>
+    <div class="timer-panel-head-row">
+      <span class="timer-panel-head">focus timer</span>
+      <button type="button" class="sound-toggle" id="soundToggleBtn" title="toggle chime">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 5 6 9H2v6h4l5 4z"></path>
+          <path id="soundWaves" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          <line id="soundSlash" x1="2" y1="2" x2="22" y2="22" style="display:none"></line>
+        </svg>
+      </button>
+    </div>
     <div class="timer-display" id="timerDisplay">25:00</div>
+    <div class="timer-stepper">
+      <button type="button" class="stepper-btn" id="minusBtn" aria-label="Decrease minutes">−</button>
+      <span class="stepper-value" id="stepperValue">25 min</span>
+      <button type="button" class="stepper-btn" id="plusBtn" aria-label="Increase minutes">+</button>
+    </div>
     <div class="timer-presets" id="timerPresets">
       <button class="preset-btn" data-min="5">5</button>
       <button class="preset-btn" data-min="15">15</button>
@@ -1012,7 +1055,7 @@
   let tasks = [];
   let editingId = null;
   let composerDue = '';
-  let settings = {accent:'peach', animations:true, showDue:true, compact:false};
+  let settings = {accent:'peach', animations:true, showDue:true, compact:false, timerSound:true};
   const TASKS_KEY = 'study-deck-tasks';
   const SETTINGS_KEY = 'study-deck-settings';
   const CUSTOM_SUBJECTS_KEY = 'study-deck-custom-subjects';
@@ -1103,6 +1146,7 @@
     document.getElementById('toggleAnim').classList.toggle('on', settings.animations);
     document.getElementById('toggleDue').classList.toggle('on', settings.showDue);
     document.getElementById('toggleCompact').classList.toggle('on', settings.compact);
+    applySoundToggleUI();
   }
 
   function setAccent(key){ settings.accent = key; applySettings(); saveSettings(); }
@@ -1575,7 +1619,7 @@
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   }
   function playChime(){
-    if(!audioCtx) return;
+    if(!audioCtx || !settings.timerSound) return;
     const now = audioCtx.currentTime;
     [660, 880, 990].forEach((freq, i)=>{
       const osc = audioCtx.createOscillator();
@@ -1642,7 +1686,38 @@
     timerMinutes = min;
     resetTimer();
     document.querySelectorAll('.preset-btn').forEach(b=> b.classList.toggle('active', parseInt(b.dataset.min,10) === min));
+    stepperValue.textContent = min + ' min';
   }
+
+  function setCustomMinutes(min){
+    min = Math.max(1, Math.min(180, min));
+    timerMinutes = min;
+    resetTimer();
+    document.querySelectorAll('.preset-btn').forEach(b=> b.classList.toggle('active', parseInt(b.dataset.min,10) === min));
+    stepperValue.textContent = min + ' min';
+  }
+
+  const stepperValue = document.getElementById('stepperValue');
+  document.getElementById('minusBtn').addEventListener('click', ()=>{
+    if(timerRunning) return;
+    setCustomMinutes(timerMinutes - 1);
+  });
+  document.getElementById('plusBtn').addEventListener('click', ()=>{
+    if(timerRunning) return;
+    setCustomMinutes(timerMinutes + 1);
+  });
+
+  const soundToggleBtn = document.getElementById('soundToggleBtn');
+  const soundSlash = document.getElementById('soundSlash');
+  function applySoundToggleUI(){
+    soundToggleBtn.classList.toggle('muted', !settings.timerSound);
+    soundSlash.style.display = settings.timerSound ? 'none' : 'block';
+  }
+  soundToggleBtn.addEventListener('click', ()=>{
+    settings.timerSound = !settings.timerSound;
+    applySoundToggleUI();
+    saveSettings();
+  });
 
   function openTimerPanel(){
     timerPanelOpen = true;

@@ -613,7 +613,7 @@
     color:var(--cream-faint); margin-bottom:10px; display:block;
   }
 
-  .swatches{display:flex; gap:10px;}
+  .swatches{display:flex; gap:10px; flex-wrap:wrap;}
   .swatch{
     width:30px; height:30px; border-radius:50%;
     cursor:pointer; border:2px solid transparent;
@@ -621,6 +621,36 @@
   }
   .swatch:hover{transform:scale(1.12);}
   .swatch.selected{border-color:var(--cream);}
+
+  .custom-subjects-list{display:flex; flex-direction:column; gap:6px; margin-bottom:10px;}
+  .custom-subject-row{
+    display:flex; align-items:center; gap:8px;
+    background:var(--bg-soft); border-radius:10px;
+    padding:7px 10px;
+  }
+  .custom-subject-row .dot{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .custom-subject-row .name{
+    font-family:var(--body); font-size:13px; color:var(--cream-soft);
+    flex:1;
+  }
+  .custom-subject-row .remove-subject{
+    background:none; border:none; color:var(--cream-faint);
+    font-family:var(--mono); font-size:13px; cursor:pointer;
+    padding:2px 6px; border-radius:6px;
+    transition:color .15s, background .15s;
+  }
+  .custom-subject-row .remove-subject:hover{color:var(--accent-pink); background:var(--panel-2);}
+
+  #newSubjectInput{
+    width:100%;
+    font-family:var(--body); font-size:13px;
+    background:var(--bg-soft); border:none; border-radius:10px;
+    padding:10px 12px; color:var(--cream); outline:none;
+    margin-bottom:10px; transition:box-shadow .15s;
+  }
+  #newSubjectInput:focus{box-shadow:0 0 0 2px var(--accent);}
+  #newSubjectColors{margin-bottom:12px;}
+  #newSubjectColors .swatch{width:24px; height:24px;}
 
   .switch-row{
     display:flex; justify-content:space-between; align-items:center;
@@ -692,14 +722,6 @@
   .nav-btn svg{width:19px; height:19px; position:relative; z-index:1;}
   .nav-btn.running{color:var(--accent);}
   .nav-btn.celebrate{animation:celebrate .6s ease;}
-  .nav-btn.playing{
-    color:var(--accent);
-    animation:navPulse 2s ease-in-out infinite;
-  }
-  @keyframes navPulse{
-    0%,100%{box-shadow:0 0 0 0 rgba(240,149,75,.35);}
-    50%{box-shadow:0 0 0 8px rgba(240,149,75,0);}
-  }
 
   .timer-ring{
     position:absolute; inset:0;
@@ -711,10 +733,13 @@
     transition:background .4s linear;
   }
 
-  .timer-panel, .music-panel{
+  .timer-panel{
     position:absolute;
     bottom:64px;
     left:50%;
+    margin-left:-115px;
+    width:230px;
+    padding:16px;
     z-index:22;
     background:var(--panel);
     border:1px solid var(--line);
@@ -724,9 +749,7 @@
     opacity:0; pointer-events:none;
     transition:transform .22s ease, opacity .22s ease;
   }
-  .timer-panel.open, .music-panel.open{transform:translateY(0) scale(1); opacity:1; pointer-events:auto;}
-
-  .timer-panel{width:230px; margin-left:-172px; padding:16px;}
+  .timer-panel.open{transform:translateY(0) scale(1); opacity:1; pointer-events:auto;}
   .timer-panel-head{
     font-family:var(--mono); font-size:10px; letter-spacing:.08em;
     color:var(--cream-faint); text-transform:uppercase;
@@ -749,36 +772,6 @@
   .preset-btn:hover:not(.active){color:var(--accent);}
   .timer-controls{display:flex; gap:8px;}
   .timer-controls .util-btn{flex:1; margin-top:0;}
-
-  .music-panel{width:280px; margin-left:-60px; overflow:hidden;}
-  .music-panel-head{
-    display:flex; justify-content:space-between; align-items:center;
-    padding:12px 14px 6px; font-family:var(--mono); font-size:10px; letter-spacing:.08em;
-    color:var(--cream-faint); text-transform:uppercase;
-  }
-  .music-link{
-    display:block;
-    margin:6px 14px 4px;
-    padding:11px 14px;
-    background:var(--bg-soft);
-    border-radius:12px;
-    color:var(--accent);
-    font-family:var(--display);
-    font-weight:600;
-    font-size:13.5px;
-    text-decoration:none;
-    text-align:center;
-    transition:background .15s, transform .1s;
-  }
-  .music-link:hover{background:rgba(201,184,232,.14); transform:translateY(-1px);}
-  .music-link:active{transform:scale(.98);}
-  .music-hint{
-    font-family:var(--body);
-    font-size:11px;
-    line-height:1.4;
-    color:var(--cream-faint);
-    padding:0 14px 14px;
-  }
 
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:var(--panel-2); border-radius:4px;}
@@ -881,6 +874,14 @@
   </div>
 
   <div class="setting-group">
+    <span class="setting-label">subjects</span>
+    <div id="customSubjectsList" class="custom-subjects-list"></div>
+    <input type="text" id="newSubjectInput" placeholder="new subject name" maxlength="14">
+    <div class="swatches" id="newSubjectColors"></div>
+    <button class="util-btn" id="addSubjectBtn">add subject</button>
+  </div>
+
+  <div class="setting-group">
     <div class="switch-row">
       <span class="label-text">animations</span>
       <div class="switch" id="toggleAnim"></div>
@@ -936,17 +937,6 @@
     </div>
   </div>
 
-  <div class="music-panel" id="musicPanel">
-    <div class="music-panel-head">
-      <span>lofi girl · radio</span>
-      <span id="musicStatus">paused</span>
-    </div>
-    <a class="music-link" id="musicLink" href="https://www.youtube.com/watch?v=X4VbdwhkE10" target="_blank" rel="noopener">
-      open the stream on youtube ↗
-    </a>
-    <div class="music-hint">opens in a new tab — embedded players get blocked inside this sandbox, so this is the reliable way to actually hear it</div>
-  </div>
-
   <nav class="bottom-nav">
     <button class="nav-btn" id="timerBtn" title="focus timer" aria-label="Toggle focus timer">
       <span class="timer-ring" id="timerRing"></span>
@@ -956,21 +946,11 @@
       </svg>
     </button>
 
-    <button class="nav-btn" id="musicBtn" title="lofi girl livestream" aria-label="Toggle lofi music">
+    <button class="nav-btn" id="musicBtn" title="lofi girl on spotify" aria-label="Open Spotify">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 18V5l12-2v13"></path>
         <circle cx="6" cy="18" r="3"></circle>
         <circle cx="18" cy="16" r="3"></circle>
-      </svg>
-    </button>
-
-    <button class="nav-btn" id="gamesBtn" title="polytrack" aria-label="Open PolyTrack">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="6" y1="12" x2="10" y2="12"></line>
-        <line x1="8" y1="10" x2="8" y2="14"></line>
-        <circle cx="15" cy="13" r="1"></circle>
-        <circle cx="18" cy="11" r="1"></circle>
-        <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 5.849.929l.144-.29A2 2 0 0 1 9.798 15.5h4.404a2 2 0 0 1 1.805 1.139l.144.29A3 3 0 0 0 22 16c0-1.544-.604-6.584-.685-7.258-.007-.051-.011-.1-.017-.152A4 4 0 0 0 17.32 5z"></path>
       </svg>
     </button>
   </nav>
@@ -988,6 +968,8 @@
     {key:'other', label:'Other', color:'#C9C2D6'}
   ];
 
+  const SUBJECT_COLOR_CHOICES = ['#F3C7A6','#A8D8C9','#C9B8E8','#E8B4C8','#A9C7E8','#F6E3A3','#8FBF8F','#E39898'];
+
   const ACCENTS = [
     {key:'lavender', color:'#C9B8E8'},
     {key:'peach', color:'#F3C7A6'},
@@ -996,12 +978,21 @@
     {key:'sky', color:'#A9C7E8'}
   ];
 
+  let customSubjects = [];
+  function getAllSubjects(){ return SUBJECTS.concat(customSubjects); }
+
   const subjectSelect = document.getElementById('subjectSelect');
-  SUBJECTS.forEach(s=>{
-    const opt = document.createElement('option');
-    opt.value = s.key; opt.textContent = s.label;
-    subjectSelect.appendChild(opt);
-  });
+  function renderSubjectSelect(){
+    const prevValue = subjectSelect.value;
+    subjectSelect.innerHTML = '';
+    getAllSubjects().forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.key; opt.textContent = s.label;
+      subjectSelect.appendChild(opt);
+    });
+    if(getAllSubjects().some(s=>s.key===prevValue)) subjectSelect.value = prevValue;
+  }
+  renderSubjectSelect();
 
   const swatchesEl = document.getElementById('swatches');
   ACCENTS.forEach(a=>{
@@ -1023,8 +1014,9 @@
   let settings = {accent:'peach', animations:true, showDue:true, compact:false};
   const TASKS_KEY = 'study-deck-tasks';
   const SETTINGS_KEY = 'study-deck-settings';
+  const CUSTOM_SUBJECTS_KEY = 'study-deck-custom-subjects';
 
-  function subjectOf(key){ return SUBJECTS.find(s=>s.key===key) || SUBJECTS[SUBJECTS.length-1]; }
+  function subjectOf(key){ return getAllSubjects().find(s=>s.key===key) || SUBJECTS[SUBJECTS.length-1]; }
   function uid(){ return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
   const hasCloudStorage = typeof window.storage !== 'undefined'
@@ -1061,6 +1053,13 @@
       if(res2 && res2.value) settings = Object.assign(settings, JSON.parse(res2.value));
     }catch(e){ /* use defaults */ }
 
+    try{
+      const res3 = await storageGet(CUSTOM_SUBJECTS_KEY);
+      customSubjects = res3 && res3.value ? JSON.parse(res3.value) : [];
+    }catch(e){ customSubjects = []; }
+
+    renderSubjectSelect();
+    renderCustomSubjectsList();
     applySettings();
     render();
   }
@@ -1080,6 +1079,10 @@
 
   async function saveTasks(){
     await safeStorageSet(TASKS_KEY, JSON.stringify(tasks));
+  }
+
+  async function saveCustomSubjects(){
+    await safeStorageSet(CUSTOM_SUBJECTS_KEY, JSON.stringify(customSubjects));
   }
 
   let settingsSaveTimer = null;
@@ -1102,6 +1105,57 @@
   }
 
   function setAccent(key){ settings.accent = key; applySettings(); saveSettings(); }
+
+  function renderCustomSubjectsList(){
+    const listEl = document.getElementById('customSubjectsList');
+    listEl.innerHTML = '';
+    customSubjects.forEach(s=>{
+      const row = document.createElement('div');
+      row.className = 'custom-subject-row';
+      const dot = document.createElement('span');
+      dot.className = 'dot'; dot.style.background = s.color;
+      const name = document.createElement('span');
+      name.className = 'name'; name.textContent = s.label;
+      const del = document.createElement('button');
+      del.className = 'remove-subject'; del.textContent = '×'; del.title = 'Remove subject';
+      del.addEventListener('click', ()=>{
+        customSubjects = customSubjects.filter(cs=>cs.key !== s.key);
+        saveCustomSubjects();
+        renderCustomSubjectsList();
+        renderSubjectSelect();
+      });
+      row.appendChild(dot); row.appendChild(name); row.appendChild(del);
+      listEl.appendChild(row);
+    });
+  }
+
+  let newSubjectColor = SUBJECT_COLOR_CHOICES[0];
+  const newSubjectColorsEl = document.getElementById('newSubjectColors');
+  SUBJECT_COLOR_CHOICES.forEach((color, i)=>{
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (i===0 ? ' selected' : '');
+    sw.style.background = color;
+    sw.dataset.color = color;
+    sw.addEventListener('click', ()=>{
+      newSubjectColor = color;
+      newSubjectColorsEl.querySelectorAll('.swatch').forEach(el=> el.classList.toggle('selected', el.dataset.color===color));
+    });
+    newSubjectColorsEl.appendChild(sw);
+  });
+
+  document.getElementById('addSubjectBtn').addEventListener('click', ()=>{
+    const input = document.getElementById('newSubjectInput');
+    const name = input.value.trim();
+    if(!name){ input.focus(); return; }
+    customSubjects.push({ key: 'custom_' + Date.now().toString(36), label: name, color: newSubjectColor });
+    input.value = '';
+    saveCustomSubjects();
+    renderCustomSubjectsList();
+    renderSubjectSelect();
+  });
+  document.getElementById('newSubjectInput').addEventListener('keydown', e=>{
+    if(e.key === 'Enter') document.getElementById('addSubjectBtn').click();
+  });
 
   function fmtDue(dateStr){
     if(!dateStr) return null;
@@ -1140,7 +1194,7 @@
 
     const subjSel = document.createElement('select');
     subjSel.className = 'edit-subject';
-    SUBJECTS.forEach(s=>{
+    getAllSubjects().forEach(s=>{
       const opt = document.createElement('option');
       opt.value = s.key; opt.textContent = s.label;
       if(s.key === task.subject) opt.selected = true;
@@ -1592,8 +1646,6 @@
   function openTimerPanel(){
     timerPanelOpen = true;
     timerPanel.classList.add('open');
-    panelOpen = false;
-    musicPanel.classList.remove('open');
   }
   function closeTimerPanel(){
     timerPanelOpen = false;
@@ -1611,47 +1663,16 @@
 
   updateTimerUI();
 
-  /* ---- Music player ---- */
-  const musicBtn = document.getElementById('musicBtn');
-  const musicPanel = document.getElementById('musicPanel');
-  const musicLink = document.getElementById('musicLink');
-  const musicStatus = document.getElementById('musicStatus');
-  let panelOpen = false;
-  let playing = false;
-
-  function openMusicPanel(){
-    panelOpen = true;
-    musicPanel.classList.add('open');
-    timerPanelOpen = false;
-    timerPanel.classList.remove('open');
-  }
-  function closeMusicPanel(){
-    panelOpen = false;
-    musicPanel.classList.remove('open');
-  }
-
-  musicBtn.addEventListener('click', ()=>{
-    if(panelOpen) closeMusicPanel(); else openMusicPanel();
-  });
-
-  musicLink.addEventListener('click', ()=>{
-    playing = true;
-    musicBtn.classList.add('playing');
-    musicStatus.textContent = 'playing';
-  });
-
   document.addEventListener('click', (e)=>{
-    if(panelOpen && !musicPanel.contains(e.target) && e.target !== musicBtn && !musicBtn.contains(e.target)){
-      closeMusicPanel();
-    }
     if(timerPanelOpen && !timerPanel.contains(e.target) && e.target !== timerBtn && !timerBtn.contains(e.target)){
       closeTimerPanel();
     }
   });
 
-  /* ---- Games ---- */
-  document.getElementById('gamesBtn').addEventListener('click', ()=>{
-    window.open('https://kodub.itch.io/polytrack', '_blank', 'noopener');
+  /* ---- Music (opens Lofi Girl on Spotify directly) ---- */
+  const musicBtn = document.getElementById('musicBtn');
+  musicBtn.addEventListener('click', ()=>{
+    window.open('https://open.spotify.com/playlist/0vvXsWCC9xrXsKd4FyS8kM', '_blank', 'noopener');
   });
 
   /* ---- Custom calendar picker ---- */

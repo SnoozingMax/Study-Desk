@@ -767,28 +767,25 @@
   .sound-toggle svg{width:15px; height:15px;}
   .sound-toggle:hover{color:var(--accent);}
   .sound-toggle.muted{color:var(--cream-faint); opacity:.55;}
+  .timer-display-row{
+    display:flex; align-items:center; justify-content:center; gap:16px;
+    margin-bottom:14px;
+  }
   .timer-display{
     font-family:var(--display); font-weight:700; font-size:34px;
     color:var(--cream); text-align:center; letter-spacing:.02em;
-    margin-bottom:10px;
-  }
-  .timer-stepper{
-    display:flex; align-items:center; justify-content:center; gap:14px;
-    margin-bottom:12px;
+    min-width:104px;
   }
   .stepper-btn{
-    width:26px; height:26px; border-radius:50%;
+    width:28px; height:28px; border-radius:50%;
     background:var(--bg-soft); border:none; color:var(--cream-soft);
-    font-family:var(--mono); font-size:14px; cursor:pointer;
+    font-family:var(--mono); font-size:15px; cursor:pointer;
     display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
     transition:background .15s, color .15s;
   }
   .stepper-btn:hover{color:var(--accent); background:rgba(240,149,75,.14);}
   .stepper-btn:active{transform:scale(.92);}
-  .stepper-value{
-    font-family:var(--mono); font-size:11px; color:var(--cream-soft);
-    min-width:52px; text-align:center;
-  }
   .timer-presets{display:flex; gap:6px; justify-content:center; margin-bottom:14px;}
   .preset-btn{
     font-family:var(--mono); font-size:10.5px;
@@ -962,10 +959,9 @@
         </svg>
       </button>
     </div>
-    <div class="timer-display" id="timerDisplay">25:00</div>
-    <div class="timer-stepper">
+    <div class="timer-display-row">
       <button type="button" class="stepper-btn" id="minusBtn" aria-label="Decrease minutes">−</button>
-      <span class="stepper-value" id="stepperValue">25 min</span>
+      <div class="timer-display" id="timerDisplay">25:00</div>
       <button type="button" class="stepper-btn" id="plusBtn" aria-label="Increase minutes">+</button>
     </div>
     <div class="timer-presets" id="timerPresets">
@@ -1686,7 +1682,6 @@
     timerMinutes = min;
     resetTimer();
     document.querySelectorAll('.preset-btn').forEach(b=> b.classList.toggle('active', parseInt(b.dataset.min,10) === min));
-    stepperValue.textContent = min + ' min';
   }
 
   function setCustomMinutes(min){
@@ -1694,10 +1689,8 @@
     timerMinutes = min;
     resetTimer();
     document.querySelectorAll('.preset-btn').forEach(b=> b.classList.toggle('active', parseInt(b.dataset.min,10) === min));
-    stepperValue.textContent = min + ' min';
   }
 
-  const stepperValue = document.getElementById('stepperValue');
   document.getElementById('minusBtn').addEventListener('click', ()=>{
     if(timerRunning) return;
     setCustomMinutes(timerMinutes - 1);

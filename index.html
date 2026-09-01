@@ -53,26 +53,42 @@
   .blob{
     position:fixed;
     border-radius:50%;
-    filter:blur(70px);
-    opacity:.28;
+    filter:blur(80px);
+    opacity:.34;
     z-index:0;
     pointer-events:none;
+    will-change:transform, opacity;
   }
-  .blob1{width:380px;height:380px;background:var(--accent-peach);top:-120px;left:-100px;animation:drift1 26s ease-in-out infinite;}
-  .blob2{width:320px;height:320px;background:var(--accent-sky);bottom:-100px;right:-80px;animation:drift2 32s ease-in-out infinite;}
-  .blob3{width:260px;height:260px;background:var(--accent-mint);top:40%;left:60%;animation:drift3 22s ease-in-out infinite;}
+  .blob1{width:460px;height:460px;background:var(--accent-peach);top:-140px;left:-120px;animation:drift1 34s ease-in-out infinite, breathe 12s ease-in-out infinite;}
+  .blob2{width:400px;height:400px;background:var(--accent-sky);bottom:-120px;right:-90px;animation:drift2 42s ease-in-out infinite, breathe 15s ease-in-out infinite 2s;}
+  .blob3{width:320px;height:320px;background:var(--accent-mint);top:38%;left:58%;animation:drift3 28s ease-in-out infinite, breathe 10s ease-in-out infinite 1s;}
+  .blob4{width:280px;height:280px;background:var(--accent-pink);top:62%;left:8%;animation:drift4 38s ease-in-out infinite, breathe 13s ease-in-out infinite 3s;}
 
   @keyframes drift1{
     0%,100%{transform:translate(0,0) scale(1);}
-    50%{transform:translate(40px,60px) scale(1.12);}
+    25%{transform:translate(70px,40px) scale(1.14);}
+    50%{transform:translate(30px,90px) scale(1.05);}
+    75%{transform:translate(-30px,45px) scale(1.12);}
   }
   @keyframes drift2{
     0%,100%{transform:translate(0,0) scale(1);}
-    50%{transform:translate(-50px,-30px) scale(1.08);}
+    30%{transform:translate(-70px,-50px) scale(1.1);}
+    60%{transform:translate(-20px,-95px) scale(1.02);}
+    80%{transform:translate(35px,-40px) scale(1.08);}
   }
   @keyframes drift3{
     0%,100%{transform:translate(0,0) scale(1);}
-    50%{transform:translate(-30px,40px) scale(.92);}
+    35%{transform:translate(-60px,50px) scale(.9);}
+    65%{transform:translate(45px,80px) scale(1.08);}
+  }
+  @keyframes drift4{
+    0%,100%{transform:translate(0,0) scale(1);}
+    40%{transform:translate(80px,-55px) scale(1.15);}
+    70%{transform:translate(25px,-100px) scale(.95);}
+  }
+  @keyframes breathe{
+    0%,100%{opacity:.30;}
+    50%{opacity:.44;}
   }
 
   body.no-animations .blob{animation:none;}
@@ -813,6 +829,7 @@
 <div class="blob blob1"></div>
 <div class="blob blob2"></div>
 <div class="blob blob3"></div>
+<div class="blob blob4"></div>
 
 <div class="wrap">
 

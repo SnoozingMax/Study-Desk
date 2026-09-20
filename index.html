@@ -1621,6 +1621,7 @@
   let timerRemaining = timerMinutes * 60;
   let timerInterval = null;
   let timerRunning = false;
+  let timerEndsAt = null;
   let timerPanelOpen = false;
 
   let audioCtx = null;
@@ -1664,36 +1665,52 @@
     startPauseBtn.textContent = timerRunning ? 'pause' : (timerRemaining < total ? 'resume' : 'start');
   }
 
+  function finishTimer(){
+    clearInterval(timerInterval); timerInterval = null;
+    timerRunning = false; timerEndsAt = null;
+    timerRemaining = 0;
+    timerBtn.classList.add('celebrate');
+    setTimeout(()=> timerBtn.classList.remove('celebrate'), 600);
+    playChime();
+    updateTimerUI();
+  }
+
   function tickTimer(){
-    if(timerRemaining <= 0){
-      clearInterval(timerInterval); timerInterval = null; timerRunning = false;
-      timerBtn.classList.add('celebrate');
-      setTimeout(()=> timerBtn.classList.remove('celebrate'), 600);
-      playChime();
-      updateTimerUI();
-      return;
-    }
-    timerRemaining--;
+    if(!timerRunning || timerEndsAt === null) return;
+    // derive remaining from wall-clock time, so background-tab
+    // throttling of setInterval can't make the countdown drift
+    timerRemaining = Math.max(0, Math.round((timerEndsAt - Date.now())/1000));
+    if(timerRemaining <= 0){ finishTimer(); return; }
     updateTimerUI();
   }
 
   function startPauseTimer(){
     ensureAudio();
     if(timerRunning){
-      clearInterval(timerInterval); timerInterval = null; timerRunning = false;
+      clearInterval(timerInterval); timerInterval = null;
+      timerRunning = false;
+      timerRemaining = Math.max(0, Math.round((timerEndsAt - Date.now())/1000));
+      timerEndsAt = null;
     } else {
       if(timerRemaining <= 0) timerRemaining = timerMinutes * 60;
       timerRunning = true;
-      timerInterval = setInterval(tickTimer, 1000);
+      timerEndsAt = Date.now() + timerRemaining * 1000;
+      timerInterval = setInterval(tickTimer, 250);
     }
     updateTimerUI();
   }
 
   function resetTimer(){
-    clearInterval(timerInterval); timerInterval = null; timerRunning = false;
+    clearInterval(timerInterval); timerInterval = null;
+    timerRunning = false; timerEndsAt = null;
     timerRemaining = timerMinutes * 60;
     updateTimerUI();
   }
+
+  // re-sync the moment the tab becomes visible again
+  document.addEventListener('visibilitychange', ()=>{
+    if(!document.hidden && timerRunning) tickTimer();
+  });
 
   function setPreset(min){
     timerMinutes = min;

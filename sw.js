@@ -1,7 +1,7 @@
 // study desk service worker: network-first so updates show up right away,
 // with a cached copy as fallback when offline
-const VERSION = 'sd-v1';
-const SHELL = ['./', './index.html', './manifest.json', './icon-192-v2.png', './icon-512-v2.png'];
+const VERSION = 'sd-v2';
+const SHELL = ['./', './index.html', './manifest.json', './icon-192-v3.png', './icon-512-v3.png', './apple-touch-icon-v3.png'];
 
 self.addEventListener('install', (e)=>{
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).catch(()=>{}));

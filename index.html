@@ -6,7 +6,8 @@
 <title>max's study thing</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1F1A23">
-<link rel="apple-touch-icon" href="icon-192-v2.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-v3.png">
+<link rel="icon" type="image/png" href="icon-192-v3.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1862,7 +1863,7 @@
     try{
       if(!('Notification' in window) || Notification.permission !== 'granted') return;
       if(!document.hidden && document.hasFocus()) return;
-      const opts = { body, icon: 'icon-192-v2.png', tag: 'study-timer', renotify: true };
+      const opts = { body, icon: 'icon-192-v3.png', tag: 'study-timer', renotify: true };
       if(navigator.serviceWorker && navigator.serviceWorker.controller){
         navigator.serviceWorker.ready.then(reg=> reg.showNotification(title, opts)).catch(()=>{ new Notification(title, opts); });
       } else {

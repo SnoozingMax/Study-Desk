@@ -1141,11 +1141,10 @@
   const SUBJECTS = [
     {key:'math', label:'Math', color:'#F3C7A6'},
     {key:'science', label:'Science', color:'#A8D8C9'},
-    {key:'physics', label:'Physics', color:'#E0947F'},
     {key:'english', label:'English', color:'#C9B8E8'},
     {key:'history', label:'History', color:'#E8B4C8'},
     {key:'spanish', label:'Spanish', color:'#A9C7E8'},
-    {key:'lacrosse', label:'Lacrosse', color:'#F6E3A3'},
+    {key:'sports', label:'Sports', color:'#F6E3A3'},
     {key:'other', label:'Other', color:'#C9C2D6'}
   ];
 
@@ -1228,6 +1227,11 @@
       const res = await storageGet(TASKS_KEY);
       tasks = res && res.value ? JSON.parse(res.value) : [];
     }catch(e){ tasks = []; }
+    // move tasks from retired subjects onto their replacements
+    const RENAMED = { lacrosse:'sports', physics:'science' };
+    let migrated = false;
+    tasks.forEach(t=>{ if(RENAMED[t.subject]){ t.subject = RENAMED[t.subject]; migrated = true; } });
+    if(migrated) saveTasks();
 
     try{
       const res2 = await storageGet(SETTINGS_KEY);

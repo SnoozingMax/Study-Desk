@@ -1060,6 +1060,12 @@
     <button class="util-btn" id="clearDoneBtn">clear completed</button>
   </div>
 
+  <div class="setting-group">
+    <span class="setting-label">notifications</span>
+    <span class="group-desc" id="notifDesc">get an alert when the timer ends while you're on another tab or app</span>
+    <button class="util-btn" id="testNotifBtn">send a test notification</button>
+  </div>
+
   <div class="setting-group" id="installGroup">
     <span class="setting-label">app</span>
     <span class="group-desc" id="installDesc">install it so it opens in its own window with an icon, and works offline</span>
@@ -1863,16 +1869,24 @@
     timerEndTimeout = setTimeout(tickTimer, timerRemaining * 1000 + 50);
   }
 
+  // iOS only allows notifications through the service worker (and only
+  // when added to the home screen), so always prefer that route
+  function showNote(title, body){
+    const opts = { body, icon: 'icon-192-v3.png', badge: 'icon-192-v3.png', tag: 'study-timer', renotify: true };
+    const fallback = ()=>{ try{ new Notification(title, opts); }catch(e){} };
+    if('serviceWorker' in navigator){
+      return navigator.serviceWorker.getRegistration()
+        .then(reg=> reg ? reg.showNotification(title, opts) : fallback())
+        .catch(fallback);
+    }
+    fallback();
+    return Promise.resolve();
+  }
   function notify(title, body){
     try{
       if(!('Notification' in window) || Notification.permission !== 'granted') return;
       if(!document.hidden && document.hasFocus()) return;
-      const opts = { body, icon: 'icon-192-v3.png', tag: 'study-timer', renotify: true };
-      if(navigator.serviceWorker && navigator.serviceWorker.controller){
-        navigator.serviceWorker.ready.then(reg=> reg.showNotification(title, opts)).catch(()=>{ new Notification(title, opts); });
-      } else {
-        new Notification(title, opts);
-      }
+      showNote(title, body);
     }catch(e){}
   }
 
@@ -2271,6 +2285,25 @@
       }
     });
   });
+
+  /* ---- Test notification ---- */
+  document.getElementById('testNotifBtn').addEventListener('click', async ()=>{
+    if(!('Notification' in window)){
+      showToast(isIOSDevice() ? 'add it to your home screen first, then open it from there' : "this browser doesn't support notifications", null, 4500);
+      return;
+    }
+    let perm = Notification.permission;
+    if(perm === 'default'){ try{ perm = await Notification.requestPermission(); }catch(e){} }
+    if(perm !== 'granted'){
+      showToast('notifications are blocked, turn them on in your device settings', null, 4500);
+      return;
+    }
+    await showNote('study thing', 'notifications are working');
+    showToast('test sent');
+  });
+  function isIOSDevice(){
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
 
   /* ---- Install as app ---- */
   const installGroup = document.getElementById('installGroup');

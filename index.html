@@ -863,6 +863,7 @@
 
   /* ---- toast (updates, backup feedback) ---- */
   .toast{
+    max-width:calc(100vw - 32px);
     position:fixed; top:calc(16px + env(safe-area-inset-top)); left:50%;
     transform:translate(-50%,-12px); opacity:0; pointer-events:none;
     background:var(--panel); border:1px solid var(--line);
@@ -883,8 +884,22 @@
 
   .util-row{display:flex; gap:8px;}
   .util-row .util-btn{flex:1;}
-  #installBtn{display:none;}
-  #installBtn.available{display:block;}
+  #installGroup{display:none;}
+  #installGroup.available{display:block;}
+  #backupBox{
+    width:100%; resize:none;
+    font-family:var(--mono); font-size:10.5px; line-height:1.4;
+    background:var(--bg-soft); border:none; border-radius:10px;
+    padding:10px 12px; color:var(--cream-soft); outline:none;
+    word-break:break-all; transition:box-shadow .15s;
+  }
+  #backupBox:focus{box-shadow:0 0 0 2px var(--accent);}
+  #backupBox + .util-row{margin-top:2px;}
+  .shortcut-list{display:flex; flex-direction:column; gap:7px;}
+  .shortcut{display:flex; align-items:center; gap:10px; font-family:var(--body); font-size:12.5px; color:var(--cream-soft);}
+  .shortcut kbd{min-width:46px; text-align:center;}
+  .shortcuts-group{display:none;}
+  @media (hover:hover) and (pointer:fine){ .shortcuts-group{display:block;} }
 </style>
 </head>
 <body>
@@ -1016,14 +1031,37 @@
   </div>
 
   <div class="setting-group">
-    <span class="setting-label">board</span>
-    <span class="group-desc">clear finished tasks, or save a backup file you can restore on any device</span>
-    <button class="util-btn" id="clearDoneBtn">clear completed</button>
+    <span class="setting-label">backup code</span>
+    <span class="group-desc">your tasks, subjects and settings packed into one code. copy it and keep it somewhere safe (notes, a message to yourself). on any device, paste it here and hit restore to get everything back.</span>
+    <textarea id="backupBox" rows="3" spellcheck="false" autocomplete="off" placeholder="paste a backup code here to restore"></textarea>
     <div class="util-row">
-      <button class="util-btn" id="exportBtn">export backup</button>
-      <button class="util-btn" id="importBtn">import backup</button>
+      <button class="util-btn" id="copyCodeBtn">copy my code</button>
+      <button class="util-btn" id="restoreBtn">restore</button>
     </div>
-    <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </div>
+
+  <div class="setting-group shortcuts-group">
+    <span class="setting-label">keyboard shortcuts</span>
+    <span class="group-desc">work anywhere on the page when you're not typing in a box</span>
+    <div class="shortcut-list">
+      <div class="shortcut"><kbd>N</kbd><span>jump to "add a task"</span></div>
+      <div class="shortcut"><kbd>Space</kbd><span>start / pause the timer</span></div>
+      <div class="shortcut"><kbd>T</kbd><span>open / close the timer</span></div>
+      <div class="shortcut"><kbd>,</kbd><span>open settings</span></div>
+      <div class="shortcut"><kbd>Esc</kbd><span>close whatever's open</span></div>
+      <div class="shortcut"><kbd>Enter</kbd><span>add the task you're typing</span></div>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <span class="setting-label">board</span>
+    <span class="group-desc">removes everything in the done column</span>
+    <button class="util-btn" id="clearDoneBtn">clear completed</button>
+  </div>
+
+  <div class="setting-group" id="installGroup">
+    <span class="setting-label">app</span>
+    <span class="group-desc" id="installDesc">install it so it opens in its own window with an icon, and works offline</span>
     <button class="util-btn" id="installBtn">install as app</button>
   </div>
 </div>
@@ -2148,68 +2186,124 @@
   const toastText = document.getElementById('toastText');
   const toastBtn = document.getElementById('toastBtn');
   let toastTimer = null;
-  function showToast(msg, action){
+  function showToast(msg, action, ms){
     toastText.textContent = msg;
     toastEl.classList.toggle('no-action', !action);
     toastBtn.onclick = action || null;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    if(!action) toastTimer = setTimeout(()=> toastEl.classList.remove('show'), 2400);
+    if(!action) toastTimer = setTimeout(()=> toastEl.classList.remove('show'), ms || 2400);
   }
 
-  /* ---- Backup: export / import ---- */
-  document.getElementById('exportBtn').addEventListener('click', ()=>{
-    const data = { app:'study-desk', version:1, exportedAt:new Date().toISOString(), tasks, customSubjects, settings };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'study-desk-backup-' + todayKey() + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=> URL.revokeObjectURL(url), 1000);
-    showToast('backup downloaded');
+  /* ---- Backup code: everything packed into one copy-pasteable string ---- */
+  function bytesToB64url(bytes){
+    let bin = '';
+    for(let i=0; i<bytes.length; i+=0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i+0x8000));
+    return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function b64urlToBytes(str){
+    str = str.replace(/-/g,'+').replace(/_/g,'/');
+    while(str.length % 4) str += '=';
+    const bin = atob(str);
+    const out = new Uint8Array(bin.length);
+    for(let i=0; i<bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  async function makeBackupCode(){
+    const payload = { app:'study-desk', v:1, tasks, customSubjects, settings };
+    const raw = new TextEncoder().encode(JSON.stringify(payload));
+    if(window.CompressionStream){
+      try{
+        const zipped = new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+        return 'SD1z.' + bytesToB64url(new Uint8Array(await new Response(zipped).arrayBuffer()));
+      }catch(e){}
+    }
+    return 'SD1p.' + bytesToB64url(raw);
+  }
+  async function readBackupCode(code){
+    code = (code || '').replace(/\s+/g, '');
+    const dot = code.indexOf('.');
+    const tag = code.slice(0, dot), body = code.slice(dot + 1);
+    let bytes = b64urlToBytes(body);
+    if(tag === 'SD1z'){
+      if(!window.DecompressionStream) throw new Error('unsupported');
+      const unzipped = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      bytes = new Uint8Array(await new Response(unzipped).arrayBuffer());
+    } else if(tag !== 'SD1p'){
+      throw new Error('bad code');
+    }
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    if(!data || data.app !== 'study-desk' || !Array.isArray(data.tasks)) throw new Error('bad code');
+    return data;
+  }
+
+  const backupBox = document.getElementById('backupBox');
+  document.getElementById('copyCodeBtn').addEventListener('click', async ()=>{
+    const code = await makeBackupCode();
+    backupBox.value = code;
+    let copied = false;
+    try{ await navigator.clipboard.writeText(code); copied = true; }catch(e){}
+    if(!copied){ backupBox.focus(); backupBox.select(); try{ copied = document.execCommand('copy'); }catch(e){} }
+    showToast(copied ? 'code copied · ' + tasks.length + ' tasks saved in it' : 'code is in the box, copy it from there');
   });
 
-  const importFile = document.getElementById('importFile');
-  document.getElementById('importBtn').addEventListener('click', ()=> importFile.click());
-  importFile.addEventListener('change', ()=>{
-    const file = importFile.files && importFile.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ()=>{
+  const restoreBtn = document.getElementById('restoreBtn');
+  restoreBtn.dataset.label = restoreBtn.textContent;
+  restoreBtn.addEventListener('click', ()=>{
+    if(!backupBox.value.trim()){ showToast('paste a backup code first'); backupBox.focus(); return; }
+    confirmAction(restoreBtn, async ()=>{
       try{
-        const data = JSON.parse(reader.result);
-        if(!data || data.app !== 'study-desk' || !Array.isArray(data.tasks)) throw new Error('bad file');
+        const data = await readBackupCode(backupBox.value);
         tasks = data.tasks.filter(t=> t && t.id && typeof t.text === 'string');
-        if(Array.isArray(data.customSubjects)) customSubjects = data.customSubjects.filter(c=> c && c.key && c.label);
+        customSubjects = Array.isArray(data.customSubjects) ? data.customSubjects.filter(c=> c && c.key && c.label) : [];
         if(data.settings && typeof data.settings === 'object') settings = Object.assign(settings, data.settings);
         saveTasks(); saveCustomSubjects(); saveSettings();
         renderSubjectSelect(); renderCustomSubjectsList(); applySettings(); render(); updateTimerUI();
-        showToast('backup restored · ' + tasks.length + ' tasks');
+        backupBox.value = '';
+        showToast('restored · ' + tasks.length + ' tasks back');
       }catch(err){
-        showToast("that file isn't a study desk backup");
+        showToast("that code didn't work, make sure you copied all of it", null, 3500);
       }
-      importFile.value = '';
-    };
-    reader.readAsText(file);
+    });
   });
 
-  /* ---- Install as app (Chrome / Edge) ---- */
+  /* ---- Install as app ---- */
+  const installGroup = document.getElementById('installGroup');
   const installBtn = document.getElementById('installBtn');
+  const installDesc = document.getElementById('installDesc');
+  const isStandalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isMacSafari = !isIOS && /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome|Chromium|Edg|Firefox/.test(ua);
   let deferredInstall = null;
+
+  if(!isStandalone && (isIOS || isMacSafari)){
+    installGroup.classList.add('available');
+    installBtn.textContent = 'how to install';
+    installDesc.textContent = isIOS
+      ? 'add it to your home screen so it opens full screen like a real app, works offline, and can send timer alerts'
+      : 'add it to your dock so it opens in its own window, works offline, and can send timer alerts';
+  }
+
   window.addEventListener('beforeinstallprompt', (e)=>{
     e.preventDefault();
     deferredInstall = e;
-    installBtn.classList.add('available');
+    installGroup.classList.add('available');
   });
   installBtn.addEventListener('click', async ()=>{
-    if(!deferredInstall) return;
-    deferredInstall.prompt();
-    try{ await deferredInstall.userChoice; }catch(e){}
-    deferredInstall = null;
-    installBtn.classList.remove('available');
+    if(deferredInstall){
+      deferredInstall.prompt();
+      try{ await deferredInstall.userChoice; }catch(e){}
+      deferredInstall = null;
+      installGroup.classList.remove('available');
+    } else if(isIOS){
+      showToast('in Safari: tap Share, then "Add to Home Screen"', null, 6000);
+    } else if(isMacSafari){
+      showToast('in Safari: File menu, then "Add to Dock"', null, 6000);
+    }
   });
   window.addEventListener('appinstalled', ()=>{
-    installBtn.classList.remove('available');
+    installGroup.classList.remove('available');
     showToast('installed');
   });
 

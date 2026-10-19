@@ -94,7 +94,7 @@
   body.no-animations .blob{animation:none;}
   body.no-animations *{animation-duration:0s !important; transition-duration:.05s !important;}
 
-  .wrap{max-width:1040px;margin:0 auto;padding:calc(42px + env(safe-area-inset-top)) 22px 80px;position:relative;z-index:1;}
+  .wrap{max-width:1040px;margin:0 auto;padding:calc(42px + env(safe-area-inset-top)) 22px 130px;position:relative;z-index:1;}
 
   /* ---- Header ---- */
   header{
@@ -822,6 +822,61 @@
     .blob{animation:none;}
     .card{animation:none;}
   }
+
+  /* ---- light theme ---- */
+  body.light{
+    --bg:#F6F1E9;
+    --bg-soft:#EEE7DC;
+    --panel:#FFFCF7;
+    --panel-2:#F1E9DD;
+    --cream:#2B2230;
+    --cream-soft:#5D5364;
+    --cream-faint:#9C919F;
+    --line:rgba(43,34,48,0.10);
+    --shadow:rgba(80,55,35,0.12);
+  }
+  body.light .blob{opacity:.20;}
+  body.light .overlay{background:rgba(60,45,35,.25);}
+  body.light .switch::after{background:#fff; box-shadow:0 1px 3px rgba(60,40,30,.25);}
+  body.light .eyebrow{color:#C46A2C; opacity:1;}
+  body.light .tag{filter:brightness(.72) saturate(1.4);}
+  body.light .urgent-badge{color:#B8476E; background:rgba(232,180,200,.28);}
+
+  /* ---- keyboard hint (desktop only) ---- */
+  .kbd-hint{display:none;}
+  @media (hover:hover) and (pointer:fine){
+    .kbd-hint{display:block; margin-top:6px;}
+  }
+  kbd{
+    font-family:var(--mono); font-size:9.5px;
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:4px; padding:1px 5px; color:var(--cream-soft);
+  }
+
+  /* ---- toast (updates, backup feedback) ---- */
+  .toast{
+    position:fixed; top:calc(16px + env(safe-area-inset-top)); left:50%;
+    transform:translate(-50%,-12px); opacity:0; pointer-events:none;
+    background:var(--panel); border:1px solid var(--line);
+    box-shadow:0 12px 30px var(--shadow);
+    border-radius:999px; padding:8px 8px 8px 16px;
+    display:flex; align-items:center; gap:10px;
+    font-family:var(--body); font-size:13px; color:var(--cream-soft);
+    z-index:80; transition:opacity .2s ease, transform .2s ease;
+  }
+  .toast.show{opacity:1; transform:translate(-50%,0); pointer-events:auto;}
+  .toast button{
+    background:var(--accent); color:#241B2C; border:none; border-radius:999px;
+    font-family:var(--display); font-weight:600; font-size:12.5px;
+    padding:6px 14px; cursor:pointer;
+  }
+  .toast.no-action{padding-right:16px;}
+  .toast.no-action button{display:none;}
+
+  .util-row{display:flex; gap:8px;}
+  .util-row .util-btn{flex:1;}
+  #installBtn{display:none;}
+  #installBtn.available{display:block;}
 </style>
 </head>
 <body>
@@ -900,7 +955,10 @@
     </div>
   </div>
 
-  <footer>drag a card across columns · saved automatically</footer>
+  <footer>
+    drag a card across columns · saved automatically
+    <div class="kbd-hint"><kbd>N</kbd> new task · <kbd>Space</kbd> start/pause · <kbd>T</kbd> timer · <kbd>,</kbd> settings · <kbd>Esc</kbd> close</div>
+  </footer>
 </div>
 
 <!-- Settings drawer -->
@@ -926,6 +984,14 @@
 
   <div class="setting-group">
     <div class="switch-row">
+      <span class="label-text">light mode</span>
+      <div class="switch" id="toggleTheme"></div>
+    </div>
+    <div class="switch-row">
+      <span class="label-text">pomodoro breaks</span>
+      <div class="switch" id="togglePomo"></div>
+    </div>
+    <div class="switch-row">
       <span class="label-text">animations</span>
       <div class="switch" id="toggleAnim"></div>
     </div>
@@ -942,10 +1008,18 @@
   <div class="setting-group">
     <span class="setting-label">board</span>
     <button class="util-btn" id="clearDoneBtn">clear completed</button>
+    <div class="util-row">
+      <button class="util-btn" id="exportBtn">export backup</button>
+      <button class="util-btn" id="importBtn">import backup</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <button class="util-btn" id="installBtn">install as app</button>
   </div>
 </div>
 
-<!-- Bottom nav: timer, music, games -->
+<div class="toast" id="toast"><span id="toastText"></span><button type="button" id="toastBtn">reload</button></div>
+
+
 <!-- Custom calendar popover (shared by composer + edit form) -->
 <div class="cal-popover" id="calPopover">
   <div class="cal-header">
@@ -967,7 +1041,7 @@
 
   <div class="timer-panel" id="timerPanel">
     <div class="timer-panel-head-row">
-      <span class="timer-panel-head">focus timer</span>
+      <span class="timer-panel-head" id="timerHead">focus timer</span>
       <button type="button" class="sound-toggle" id="soundToggleBtn" title="toggle chime">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M11 5 6 9H2v6h4l5 4z"></path>
@@ -1068,7 +1142,7 @@
   let tasks = [];
   let editingId = null;
   let composerDue = '';
-  let settings = {accent:'peach', animations:true, showDue:true, compact:false, timerSound:true};
+  let settings = {accent:'peach', animations:true, showDue:true, compact:false, timerSound:true, theme:'dark', pomodoro:false};
   const TASKS_KEY = 'study-deck-tasks';
   const SETTINGS_KEY = 'study-deck-settings';
   const CUSTOM_SUBJECTS_KEY = 'study-deck-custom-subjects';
@@ -1119,6 +1193,7 @@
     renderCustomSubjectsList();
     applySettings();
     render();
+    updateTimerUI();
   }
 
   async function safeStorageSet(key, value, attempts){
@@ -1159,6 +1234,12 @@
     document.getElementById('toggleAnim').classList.toggle('on', settings.animations);
     document.getElementById('toggleDue').classList.toggle('on', settings.showDue);
     document.getElementById('toggleCompact').classList.toggle('on', settings.compact);
+    const light = settings.theme === 'light';
+    document.body.classList.toggle('light', light);
+    document.getElementById('toggleTheme').classList.toggle('on', light);
+    document.getElementById('togglePomo').classList.toggle('on', !!settings.pomodoro);
+    const tc = document.querySelector('meta[name="theme-color"]');
+    if(tc) tc.setAttribute('content', light ? '#F6F1E9' : '#1F1A23');
     applySoundToggleUI();
   }
 
@@ -1448,7 +1529,16 @@
     Object.values(zones).forEach(z=> z.innerHTML = '');
 
     const counts = {todo:0, active:0, done:0};
-    const sorted = [...tasks].sort((a,b)=> (a.order||0)-(b.order||0));
+    // open tasks: urgent first, then soonest due date, then oldest first
+    // done tasks: most recently finished first
+    const sorted = [...tasks].sort((a,b)=>{
+      if(a.status === 'done' && b.status === 'done') return (b.order||0)-(a.order||0);
+      const ua = a.priority ? 0 : 1, ub = b.priority ? 0 : 1;
+      if(ua !== ub) return ua - ub;
+      const da = a.due || '9999-12-31', db = b.due || '9999-12-31';
+      if(da !== db) return da < db ? -1 : 1;
+      return (a.order||0)-(b.order||0);
+    });
 
     sorted.forEach(t=>{
       if(!zones[t.status]) t.status = 'todo';
@@ -1558,6 +1648,12 @@
   document.getElementById('toggleCompact').addEventListener('click', ()=>{
     settings.compact = !settings.compact; applySettings(); saveSettings(); render();
   });
+  document.getElementById('toggleTheme').addEventListener('click', ()=>{
+    settings.theme = settings.theme === 'light' ? 'dark' : 'light'; applySettings(); saveSettings();
+  });
+  document.getElementById('togglePomo').addEventListener('click', ()=>{
+    settings.pomodoro = !settings.pomodoro; applySettings(); saveSettings(); updateTimerUI();
+  });
 
   function confirmAction(btn, action){
     if(btn.dataset.confirming === '1'){
@@ -1617,12 +1713,33 @@
   const startPauseBtn = document.getElementById('startPauseBtn');
   const resetTimerBtn = document.getElementById('resetTimerBtn');
 
+  const TIMER_KEY = 'study-deck-timer';
+  const BASE_TITLE = "max's study thing";
   let timerMinutes = 25;
+  let focusMinutes = 25;
+  let timerPhase = 'focus';
   let timerRemaining = timerMinutes * 60;
   let timerInterval = null;
+  let timerEndTimeout = null;
   let timerRunning = false;
   let timerEndsAt = null;
   let timerPanelOpen = false;
+  let pomoDate = '';
+  let pomoCount = 0;
+  const timerHead = document.getElementById('timerHead');
+
+  function todayKey(){ return new Date().toISOString().slice(0,10); }
+  function sessionsToday(){ return pomoDate === todayKey() ? pomoCount : 0; }
+
+  function saveTimerState(){
+    try{
+      localStorage.setItem(TIMER_KEY, JSON.stringify({
+        minutes: timerMinutes, focusMinutes, phase: timerPhase,
+        remaining: timerRemaining, endsAt: timerEndsAt, running: timerRunning,
+        pomoDate, pomoCount
+      }));
+    }catch(e){}
+  }
 
   let audioCtx = null;
   function ensureAudio(){
@@ -1662,23 +1779,82 @@
     const progress = total > 0 ? Math.min(100, Math.round(((total - timerRemaining)/total)*100)) : 0;
     timerRing.style.setProperty('--p', progress);
     timerBtn.classList.toggle('running', timerRunning);
-    startPauseBtn.textContent = timerRunning ? 'pause' : (timerRemaining < total ? 'resume' : 'start');
+    startPauseBtn.textContent = timerRunning ? 'pause' : (timerRemaining > 0 && timerRemaining < total ? 'resume' : 'start');
+
+    if(timerPhase === 'break') timerHead.textContent = 'break';
+    else if(settings.pomodoro){
+      const n = sessionsToday();
+      timerHead.textContent = 'focus · ' + n + (n === 1 ? ' session' : ' sessions');
+    } else timerHead.textContent = 'focus timer';
+
+    if(timerRunning){
+      document.title = formatTime(timerRemaining) + ' · ' + (timerPhase === 'break' ? 'break' : 'study thing');
+    } else if(document.title !== BASE_TITLE){
+      document.title = BASE_TITLE;
+    }
+  }
+
+  function stopTicking(){
+    clearInterval(timerInterval); timerInterval = null;
+    clearTimeout(timerEndTimeout); timerEndTimeout = null;
+  }
+
+  function beginRun(){
+    timerRunning = true;
+    timerEndsAt = Date.now() + timerRemaining * 1000;
+    stopTicking();
+    timerInterval = setInterval(tickTimer, 250);
+    // a single one-shot timeout is not subject to background-tab
+    // minute-alignment throttling, so the end fires on time
+    timerEndTimeout = setTimeout(tickTimer, timerRemaining * 1000 + 50);
+  }
+
+  function notify(title, body){
+    try{
+      if(!('Notification' in window) || Notification.permission !== 'granted') return;
+      if(!document.hidden && document.hasFocus()) return;
+      const opts = { body, icon: 'icon-192-v2.png', tag: 'study-timer', renotify: true };
+      if(navigator.serviceWorker && navigator.serviceWorker.controller){
+        navigator.serviceWorker.ready.then(reg=> reg.showNotification(title, opts)).catch(()=>{ new Notification(title, opts); });
+      } else {
+        new Notification(title, opts);
+      }
+    }catch(e){}
   }
 
   function finishTimer(){
-    clearInterval(timerInterval); timerInterval = null;
-    timerRunning = false; timerEndsAt = null;
-    timerRemaining = 0;
+    stopTicking();
+    timerRunning = false; timerEndsAt = null; timerRemaining = 0;
     timerBtn.classList.add('celebrate');
     setTimeout(()=> timerBtn.classList.remove('celebrate'), 600);
     playChime();
+
+    if(timerPhase === 'focus'){
+      if(settings.pomodoro){
+        pomoCount = sessionsToday() + 1; pomoDate = todayKey();
+        const longBreak = pomoCount % 4 === 0;
+        notify('focus session done', longBreak ? 'nice, take a 15 min break' : 'take a 5 min break');
+        timerPhase = 'break';
+        timerMinutes = longBreak ? 15 : 5;
+        timerRemaining = timerMinutes * 60;
+        beginRun();
+      } else {
+        notify('focus session done', 'timer finished');
+      }
+    } else {
+      notify('break over', 'back to it');
+      timerPhase = 'focus';
+      timerMinutes = focusMinutes;
+      timerRemaining = timerMinutes * 60;
+    }
+    syncPresetChips();
     updateTimerUI();
+    saveTimerState();
   }
 
   function tickTimer(){
     if(!timerRunning || timerEndsAt === null) return;
-    // derive remaining from wall-clock time, so background-tab
-    // throttling of setInterval can't make the countdown drift
+    // derived from wall-clock time, so throttled ticks can't drift it
     timerRemaining = Math.max(0, Math.round((timerEndsAt - Date.now())/1000));
     if(timerRemaining <= 0){ finishTimer(); return; }
     updateTimerUI();
@@ -1687,43 +1863,46 @@
   function startPauseTimer(){
     ensureAudio();
     if(timerRunning){
-      clearInterval(timerInterval); timerInterval = null;
+      stopTicking();
       timerRunning = false;
       timerRemaining = Math.max(0, Math.round((timerEndsAt - Date.now())/1000));
       timerEndsAt = null;
     } else {
+      if('Notification' in window && Notification.permission === 'default'){
+        try{ Notification.requestPermission(); }catch(e){}
+      }
       if(timerRemaining <= 0) timerRemaining = timerMinutes * 60;
-      timerRunning = true;
-      timerEndsAt = Date.now() + timerRemaining * 1000;
-      timerInterval = setInterval(tickTimer, 250);
+      beginRun();
     }
     updateTimerUI();
+    saveTimerState();
   }
 
   function resetTimer(){
-    clearInterval(timerInterval); timerInterval = null;
+    stopTicking();
     timerRunning = false; timerEndsAt = null;
     timerRemaining = timerMinutes * 60;
     updateTimerUI();
+    saveTimerState();
   }
 
-  // re-sync the moment the tab becomes visible again
+  function syncPresetChips(){
+    document.querySelectorAll('.preset-btn').forEach(b=>
+      b.classList.toggle('active', timerPhase === 'focus' && parseInt(b.dataset.min,10) === timerMinutes));
+  }
+
   document.addEventListener('visibilitychange', ()=>{
     if(!document.hidden && timerRunning) tickTimer();
   });
 
   function setPreset(min){
-    timerMinutes = min;
-    resetTimer();
-    document.querySelectorAll('.preset-btn').forEach(b=> b.classList.toggle('active', parseInt(b.dataset.min,10) === min));
-  }
-
-  function setCustomMinutes(min){
     min = Math.max(1, Math.min(180, min));
-    timerMinutes = min;
+    timerPhase = 'focus';
+    timerMinutes = min; focusMinutes = min;
     resetTimer();
-    document.querySelectorAll('.preset-btn').forEach(b=> b.classList.toggle('active', parseInt(b.dataset.min,10) === min));
+    syncPresetChips();
   }
+  const setCustomMinutes = setPreset;
 
   document.getElementById('minusBtn').addEventListener('click', ()=>{
     if(timerRunning) return;
@@ -1745,6 +1924,26 @@
     applySoundToggleUI();
     saveSettings();
   });
+
+  // restore a session that was running (or paused) before a refresh
+  (function restoreTimer(){
+    let st = null;
+    try{ st = JSON.parse(localStorage.getItem(TIMER_KEY) || 'null'); }catch(e){}
+    if(!st) return;
+    timerMinutes = st.minutes || 25;
+    focusMinutes = st.focusMinutes || timerMinutes;
+    timerPhase = st.phase === 'break' ? 'break' : 'focus';
+    pomoDate = st.pomoDate || ''; pomoCount = st.pomoCount || 0;
+    if(st.running && st.endsAt){
+      timerRemaining = Math.max(0, Math.round((st.endsAt - Date.now())/1000));
+      if(timerRemaining > 0){ beginRun(); timerEndsAt = st.endsAt; }
+      else { timerRemaining = 0; }
+    } else {
+      timerRemaining = typeof st.remaining === 'number' ? st.remaining : timerMinutes * 60;
+    }
+    syncPresetChips();
+    updateTimerUI();
+  })();
 
   function openTimerPanel(){
     timerPanelOpen = true;
@@ -1901,6 +2100,122 @@
       dueBtn.classList.toggle('has-value', !!iso);
     });
   });
+
+  /* ---- Keyboard shortcuts ---- */
+  document.addEventListener('keydown', (e)=>{
+    const t = e.target;
+    const tag = (t && t.tagName || '').toLowerCase();
+    const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable);
+
+    if(e.key === 'Escape'){
+      closeTimerPanel();
+      closeDrawerFn();
+      if(editingId) cancelEdit();
+      if(typing && t.blur) t.blur();
+      return;
+    }
+    if(typing || e.ctrlKey || e.metaKey || e.altKey) return;
+
+    const k = e.key.toLowerCase();
+    if(k === 'n'){ e.preventDefault(); document.getElementById('taskInput').focus(); }
+    else if(e.key === ' '){ e.preventDefault(); startPauseTimer(); }
+    else if(k === 't'){ e.preventDefault(); if(timerPanelOpen) closeTimerPanel(); else openTimerPanel(); }
+    else if(e.key === ','){ e.preventDefault(); openDrawer(); }
+  });
+
+  /* ---- Toast ---- */
+  const toastEl = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+  const toastBtn = document.getElementById('toastBtn');
+  let toastTimer = null;
+  function showToast(msg, action){
+    toastText.textContent = msg;
+    toastEl.classList.toggle('no-action', !action);
+    toastBtn.onclick = action || null;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    if(!action) toastTimer = setTimeout(()=> toastEl.classList.remove('show'), 2400);
+  }
+
+  /* ---- Backup: export / import ---- */
+  document.getElementById('exportBtn').addEventListener('click', ()=>{
+    const data = { app:'study-desk', version:1, exportedAt:new Date().toISOString(), tasks, customSubjects, settings };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'study-desk-backup-' + todayKey() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 1000);
+    showToast('backup downloaded');
+  });
+
+  const importFile = document.getElementById('importFile');
+  document.getElementById('importBtn').addEventListener('click', ()=> importFile.click());
+  importFile.addEventListener('change', ()=>{
+    const file = importFile.files && importFile.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        if(!data || data.app !== 'study-desk' || !Array.isArray(data.tasks)) throw new Error('bad file');
+        tasks = data.tasks.filter(t=> t && t.id && typeof t.text === 'string');
+        if(Array.isArray(data.customSubjects)) customSubjects = data.customSubjects.filter(c=> c && c.key && c.label);
+        if(data.settings && typeof data.settings === 'object') settings = Object.assign(settings, data.settings);
+        saveTasks(); saveCustomSubjects(); saveSettings();
+        renderSubjectSelect(); renderCustomSubjectsList(); applySettings(); render(); updateTimerUI();
+        showToast('backup restored · ' + tasks.length + ' tasks');
+      }catch(err){
+        showToast("that file isn't a study desk backup");
+      }
+      importFile.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  /* ---- Install as app (Chrome / Edge) ---- */
+  const installBtn = document.getElementById('installBtn');
+  let deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredInstall = e;
+    installBtn.classList.add('available');
+  });
+  installBtn.addEventListener('click', async ()=>{
+    if(!deferredInstall) return;
+    deferredInstall.prompt();
+    try{ await deferredInstall.userChoice; }catch(e){}
+    deferredInstall = null;
+    installBtn.classList.remove('available');
+  });
+  window.addEventListener('appinstalled', ()=>{
+    installBtn.classList.remove('available');
+    showToast('installed');
+  });
+
+  /* ---- Service worker: offline + update prompt ---- */
+  try{
+    if('serviceWorker' in navigator && location.protocol === 'https:'){
+      navigator.serviceWorker.register('sw.js').then(reg=>{
+        const offerUpdate = ()=> showToast('new version ready', ()=>{
+          if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+        });
+        if(reg.waiting && navigator.serviceWorker.controller) offerUpdate();
+        reg.addEventListener('updatefound', ()=>{
+          const nw = reg.installing;
+          if(!nw) return;
+          nw.addEventListener('statechange', ()=>{
+            if(nw.state === 'installed' && navigator.serviceWorker.controller) offerUpdate();
+          });
+        });
+        setInterval(()=> reg.update().catch(()=>{}), 30*60*1000);
+      }).catch(()=>{});
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        if(reloading) return; reloading = true; location.reload();
+      });
+    }
+  }catch(e){}
 
   loadAll();
 })();

@@ -414,8 +414,28 @@
     from{opacity:0; transform:translateY(8px) scale(.98);}
     to{opacity:1; transform:translateY(0) scale(1);}
   }
-  .card:active{cursor:grabbing;}
-  .card.dragging{opacity:.35;}
+  .card{
+    -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .card.pressing{transform:scale(.97); transition:transform .2s ease;}
+  .card.drag-source{
+    background:transparent; box-shadow:none; animation:none;
+    outline:1.5px dashed var(--accent); outline-offset:-1px;
+    transform:none;
+  }
+  .card.drag-source > *{visibility:hidden;}
+  .drag-ghost{
+    position:fixed; left:0; top:0; margin:0; z-index:90;
+    pointer-events:none; animation:none !important;
+    box-shadow:0 22px 44px var(--shadow), 0 0 0 1.5px var(--accent);
+    transition:none;
+  }
+  .drag-ghost.settling{transition:transform .18s ease, opacity .18s ease;}
+  body.is-dragging, body.is-dragging *{cursor:grabbing !important;}
+  body.is-dragging .card:hover{transform:none;}
+  .dropzone:has(.drag-source) .empty-msg{display:none;}
   .card:hover{
     transform:translateY(-3px) rotate(-0.4deg);
     box-shadow:0 10px 24px var(--shadow), 0 0 26px -6px var(--subj-color, var(--accent));
@@ -980,7 +1000,7 @@
   </div>
 
   <footer>
-    drag a card across columns · saved automatically
+    hold and drag a card to move or reorder it · saved automatically
     <div class="kbd-hint"><kbd>N</kbd> new task · <kbd>Space</kbd> start/pause · <kbd>T</kbd> timer · <kbd>,</kbd> settings · <kbd>Esc</kbd> close</div>
   </footer>
 </div>
@@ -1012,6 +1032,10 @@
     <div class="switch-row">
       <span class="label-wrap"><span class="label-text">light mode</span><span class="label-desc">switch to a cream/white look</span></span>
       <div class="switch" id="toggleTheme"></div>
+    </div>
+    <div class="switch-row">
+      <span class="label-wrap"><span class="label-text">auto sort</span><span class="label-desc">keep urgent and soonest-due tasks on top. leave off to arrange cards yourself</span></span>
+      <div class="switch" id="toggleSort"></div>
     </div>
     <div class="switch-row">
       <span class="label-wrap"><span class="label-text">pomodoro breaks</span><span class="label-desc">after each focus session, a 5 min break starts on its own (15 min every 4th)</span></span>
@@ -1197,7 +1221,7 @@
   let tasks = [];
   let editingId = null;
   let composerDue = '';
-  let settings = {accent:'peach', animations:true, showDue:true, compact:false, timerSound:true, theme:'dark', pomodoro:false};
+  let settings = {accent:'peach', animations:true, showDue:true, compact:false, timerSound:true, theme:'dark', pomodoro:false, autoSort:false};
   const TASKS_KEY = 'study-deck-tasks';
   const SETTINGS_KEY = 'study-deck-settings';
   const CUSTOM_SUBJECTS_KEY = 'study-deck-custom-subjects';
@@ -1298,6 +1322,7 @@
     document.body.classList.toggle('light', light);
     document.getElementById('toggleTheme').classList.toggle('on', light);
     document.getElementById('togglePomo').classList.toggle('on', !!settings.pomodoro);
+    document.getElementById('toggleSort').classList.toggle('on', !!settings.autoSort);
     const tc = document.querySelector('meta[name="theme-color"]');
     if(tc) tc.setAttribute('content', light ? '#F6F1E9' : '#1F1A23');
     applySoundToggleUI();
@@ -1490,7 +1515,6 @@
       + (task.status==='done' ? ' done-card' : '')
       + (settings.compact ? ' compact' : '')
       + (isUrgent ? ' urgent-card' : '');
-    card.draggable = true;
     card.dataset.id = task.id;
     const subj = subjectOf(task.subject);
     card.style.setProperty('--subj-color', subj.color);
@@ -1557,12 +1581,7 @@
     bottom.appendChild(actions);
     card.appendChild(bottom);
 
-    card.addEventListener('dragstart', e=>{
-      card.classList.add('dragging');
-      e.dataTransfer.setData('text/plain', task.id);
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    card.addEventListener('dragend', ()=> card.classList.remove('dragging'));
+    attachDrag(card, task);
 
     return card;
   }
@@ -1592,6 +1611,7 @@
     // open tasks: urgent first, then soonest due date, then oldest first
     // done tasks: most recently finished first
     const sorted = [...tasks].sort((a,b)=>{
+      if(!settings.autoSort) return (a.order||0)-(b.order||0);
       if(a.status === 'done' && b.status === 'done') return (b.order||0)-(a.order||0);
       const ua = a.priority ? 0 : 1, ub = b.priority ? 0 : 1;
       if(ua !== ub) return ua - ub;
@@ -1637,7 +1657,9 @@
     const t = tasks.find(t=>t.id===id);
     if(!t) return;
     const wasDone = t.status === 'done';
-    t.status = status; t.order = Date.now();
+    const peers = tasks.filter(x=> x !== t && x.status === status).map(x=> x.order || 0);
+    t.status = status;
+    t.order = settings.autoSort ? Date.now() : (peers.length ? Math.min(...peers) - 1 : 0);
     saveTasks(); render();
     if(status === 'done' && !wasDone){
       const el = document.querySelector('.card[data-id="'+id+'"]');
@@ -1679,16 +1701,152 @@
     document.getElementById('priorityLabel').classList.toggle('active', e.target.checked);
   });
 
-  ['todo','active','done'].forEach(status=>{
-    const zone = document.getElementById('zone-'+status);
-    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e=>{
-      e.preventDefault(); zone.classList.remove('drag-over');
-      const id = e.dataTransfer.getData('text/plain');
-      moveTask(id, status);
+  /* ---- Hold-and-drag: works with mouse, touch and pen ---- */
+  const HOLD_MS = 230;      // touch: hold this long before the card lifts
+  let drag = null;
+
+  function attachDrag(card, task){
+    card.addEventListener('pointerdown', e=>{
+      if(drag) return;
+      if(e.pointerType === 'mouse' && e.button !== 0) return;
+      if(e.target.closest('button, input, select, textarea, a, label')) return;
+      if(card.classList.contains('editing')) return;
+      const d = { id:task.id, card, pointerId:e.pointerId, type:e.pointerType,
+                  startX:e.clientX, startY:e.clientY, lastX:e.clientX, lastY:e.clientY, active:false };
+      drag = d;
+      if(e.pointerType !== 'mouse'){
+        card.classList.add('pressing');
+        d.holdTimer = setTimeout(()=> beginDrag(d), HOLD_MS);
+      }
     });
-  });
+  }
+
+  function beginDrag(d){
+    if(drag !== d || d.active) return;
+    d.active = true;
+    const card = d.card;
+    card.classList.remove('pressing');
+    try{ if(card.hasPointerCapture(d.pointerId)) card.releasePointerCapture(d.pointerId); }catch(e){}
+    const rect = card.getBoundingClientRect();
+    d.offX = d.lastX - rect.left;
+    d.offY = d.lastY - rect.top;
+    const ghost = card.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.classList.remove('pressing','celebrate');
+    ghost.style.width = rect.width + 'px';
+    document.body.appendChild(ghost);
+    d.ghost = ghost;
+    card.classList.add('drag-source');
+    document.body.classList.add('is-dragging');
+    if(navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
+    moveGhost(d);
+    autoScroll(d);
+  }
+
+  function moveGhost(d){
+    d.ghost.style.transform = 'translate(' + (d.lastX - d.offX) + 'px,' + (d.lastY - d.offY) + 'px) rotate(1.5deg) scale(1.03)';
+  }
+
+  function zoneAt(x, y){
+    const el = document.elementFromPoint(x, y);
+    if(!el) return null;
+    const z = el.closest('.dropzone');
+    if(z) return z;
+    const col = el.closest('.col');
+    return col ? col.querySelector('.dropzone') : null;
+  }
+
+  function placeSource(d){
+    const zone = zoneAt(d.lastX, d.lastY);
+    if(!zone) return;
+    document.querySelectorAll('.dropzone.drag-over').forEach(z=>{ if(z !== zone) z.classList.remove('drag-over'); });
+    zone.classList.add('drag-over');
+    const others = [...zone.querySelectorAll('.card:not(.drag-source)')];
+    const before = others.find(c=>{
+      const r = c.getBoundingClientRect();
+      return d.lastY < r.top + r.height / 2;
+    });
+    const src = d.card;
+    if(before){
+      if(src.nextElementSibling !== before || src.parentNode !== zone) zone.insertBefore(src, before);
+    } else {
+      const lastCard = others[others.length - 1];
+      if(src.parentNode !== zone || (lastCard && src.previousElementSibling !== lastCard) ){
+        if(lastCard) lastCard.after(src); else zone.prepend(src);
+      }
+    }
+  }
+
+  function autoScroll(d){
+    if(drag !== d || !d.active) return;
+    const edge = 80, h = window.innerHeight;
+    let dy = 0;
+    if(d.lastY < edge) dy = -Math.ceil((edge - d.lastY) / 5);
+    else if(d.lastY > h - edge) dy = Math.ceil((d.lastY - (h - edge)) / 5);
+    if(dy){ window.scrollBy(0, dy); placeSource(d); }
+    d.raf = requestAnimationFrame(()=> autoScroll(d));
+  }
+
+  function endDrag(commit){
+    const d = drag;
+    if(!d) return;
+    drag = null;
+    clearTimeout(d.holdTimer);
+    cancelAnimationFrame(d.raf);
+    d.card.classList.remove('pressing');
+    if(!d.active) return;
+
+    document.body.classList.remove('is-dragging');
+    document.querySelectorAll('.dropzone.drag-over').forEach(z=> z.classList.remove('drag-over'));
+
+    const zone = d.card.parentNode;
+    const status = zone && zone.dataset ? zone.dataset.status : null;
+    const t = tasks.find(x=> x.id === d.id);
+    let newlyDone = false;
+    if(commit && t && status){
+      newlyDone = status === 'done' && t.status !== 'done';
+      t.status = status;
+      [...zone.querySelectorAll('.card')].forEach((c, i)=>{
+        const task = tasks.find(x=> x.id === c.dataset.id);
+        if(task) task.order = i;
+      });
+      saveTasks();
+    }
+
+    // glide the ghost into its new slot, then redraw
+    const target = d.card.getBoundingClientRect();
+    const ghost = d.ghost;
+    ghost.classList.add('settling');
+    ghost.style.transform = 'translate(' + target.left + 'px,' + target.top + 'px)';
+    setTimeout(()=>{
+      ghost.remove();
+      render();
+      if(newlyDone){
+        const el = document.querySelector('.card[data-id="' + d.id + '"]');
+        if(el){ el.classList.add('celebrate'); setTimeout(()=> el.classList.remove('celebrate'), 600); }
+      }
+    }, 170);
+  }
+
+  window.addEventListener('pointermove', e=>{
+    const d = drag;
+    if(!d || e.pointerId !== d.pointerId) return;
+    d.lastX = e.clientX; d.lastY = e.clientY;
+    if(!d.active){
+      const dist = Math.hypot(e.clientX - d.startX, e.clientY - d.startY);
+      if(d.type === 'mouse'){ if(dist > 5) beginDrag(d); }
+      else if(dist > 10){ endDrag(false); }   // finger moved early: it's a scroll
+      return;
+    }
+    e.preventDefault();
+    moveGhost(d);
+    placeSource(d);
+  }, {passive:false});
+  window.addEventListener('pointerup', e=>{ if(drag && e.pointerId === drag.pointerId) endDrag(true); });
+  window.addEventListener('pointercancel', e=>{ if(drag && e.pointerId === drag.pointerId) endDrag(true); });
+  // stop the page from scrolling under a lifted card (iOS / Android)
+  document.addEventListener('touchmove', e=>{ if(drag && drag.active) e.preventDefault(); }, {passive:false});
+  document.addEventListener('contextmenu', e=>{ if(drag) e.preventDefault(); });
 
   /* ---- Settings drawer ---- */
   const drawer = document.getElementById('drawer');
@@ -1710,6 +1868,9 @@
   });
   document.getElementById('toggleTheme').addEventListener('click', ()=>{
     settings.theme = settings.theme === 'light' ? 'dark' : 'light'; applySettings(); saveSettings();
+  });
+  document.getElementById('toggleSort').addEventListener('click', ()=>{
+    settings.autoSort = !settings.autoSort; applySettings(); saveSettings(); render();
   });
   document.getElementById('togglePomo').addEventListener('click', ()=>{
     settings.pomodoro = !settings.pomodoro; applySettings(); saveSettings(); updateTimerUI();

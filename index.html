@@ -1072,7 +1072,7 @@
       <div class="shortcut"><kbd>N</kbd><span>jump to "add a task"</span></div>
       <div class="shortcut"><kbd>Space</kbd><span>start / pause the timer</span></div>
       <div class="shortcut"><kbd>T</kbd><span>open / close the timer</span></div>
-      <div class="shortcut"><kbd>,</kbd><span>open settings</span></div>
+      <div class="shortcut"><kbd>,</kbd><span>open / close settings</span></div>
       <div class="shortcut"><kbd>Esc</kbd><span>close whatever's open</span></div>
       <div class="shortcut"><kbd>Enter</kbd><span>add the task you're typing</span></div>
     </div>
@@ -2358,7 +2358,7 @@
     if(k === 'n'){ e.preventDefault(); document.getElementById('taskInput').focus(); }
     else if(e.key === ' '){ e.preventDefault(); startPauseTimer(); showToast(timerRunning ? 'timer started · space to pause' : 'timer paused · space to resume'); }
     else if(k === 't'){ e.preventDefault(); if(timerPanelOpen) closeTimerPanel(); else openTimerPanel(); }
-    else if(e.key === ','){ e.preventDefault(); openDrawer(); }
+    else if(e.key === ','){ e.preventDefault(); if(drawer.classList.contains('open')) closeDrawerFn(); else openDrawer(); }
   });
 
   /* ---- Toast ---- */

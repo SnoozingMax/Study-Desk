@@ -1222,6 +1222,7 @@
   let editingId = null;
   let composerDue = '';
   let settings = {accent:'peach', animations:true, showDue:true, compact:false, timerSound:true, theme:'dark', pomodoro:false, autoSort:false};
+  const DEFAULT_SETTINGS = Object.assign({}, settings);
   const TASKS_KEY = 'study-deck-tasks';
   const SETTINGS_KEY = 'study-deck-settings';
   const CUSTOM_SUBJECTS_KEY = 'study-deck-custom-subjects';
@@ -2389,30 +2390,84 @@
     for(let i=0; i<bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   }
+  // compact format: only what's needed, no ids, settings only if changed
+  const STATUSES = ['todo','active','done'];
+  function packBoard(){
+    const ordered = STATUSES.flatMap(st=> tasks.filter(t=> t.status === st).sort((a,b)=> (a.order||0)-(b.order||0)));
+    const out = {};
+    out.t = ordered.map(t=>{
+      const ci = customSubjects.findIndex(c=> c.key === t.subject);
+      const row = [t.text, ci >= 0 ? ci : t.subject, STATUSES.indexOf(t.status)];
+      if(t.priority || t.due) row.push(t.priority ? 1 : 0);
+      if(t.due) row.push(t.due.replace(/-/g,'').slice(2));
+      return row;
+    });
+    if(customSubjects.length){
+      out.c = customSubjects.map(c=>{
+        const i = SUBJECT_COLOR_CHOICES.indexOf(c.color);
+        return [c.label, i >= 0 ? i : c.color];
+      });
+    }
+    const changed = {};
+    Object.keys(settings).forEach(k=>{ if(settings[k] !== DEFAULT_SETTINGS[k]) changed[k] = settings[k]; });
+    if(Object.keys(changed).length) out.s = changed;
+    return out;
+  }
+  function unpackBoard(o){
+    const stamp = Date.now().toString(36);
+    const custom = (Array.isArray(o.c) ? o.c : []).map((c,i)=>({
+      key: 'custom_' + stamp + i,
+      label: String(c[0]).slice(0, 14),
+      color: typeof c[1] === 'number' ? (SUBJECT_COLOR_CHOICES[c[1]] || SUBJECT_COLOR_CHOICES[0]) : String(c[1])
+    }));
+    const list = (Array.isArray(o.t) ? o.t : []).map((r,i)=>{
+      const subj = typeof r[1] === 'number' ? (custom[r[1]] ? custom[r[1]].key : 'other') : String(r[1] || 'other');
+      const d = r[4] ? String(r[4]) : '';
+      return {
+        id: uid() + i, text: String(r[0]), subject: subj,
+        status: STATUSES[r[2]] || 'todo', priority: !!r[3],
+        due: d.length === 6 ? '20' + d.slice(0,2) + '-' + d.slice(2,4) + '-' + d.slice(4,6) : '',
+        order: i
+      };
+    });
+    return { app:'study-desk', tasks:list, customSubjects:custom, settings:Object.assign({}, DEFAULT_SETTINGS, o.s || {}) };
+  }
+
+  async function deflate(bytes){
+    const z = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(z).arrayBuffer());
+  }
+  async function inflate(bytes){
+    const z = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(z).arrayBuffer());
+  }
+
   async function makeBackupCode(){
-    const payload = { app:'study-desk', v:1, tasks, customSubjects, settings };
-    const raw = new TextEncoder().encode(JSON.stringify(payload));
+    const raw = new TextEncoder().encode(JSON.stringify(packBoard()));
     if(window.CompressionStream){
       try{
-        const zipped = new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-        return 'SD1z.' + bytesToB64url(new Uint8Array(await new Response(zipped).arrayBuffer()));
+        const zipped = await deflate(raw);
+        if(zipped.length < raw.length) return 'S2' + bytesToB64url(zipped);
       }catch(e){}
     }
-    return 'SD1p.' + bytesToB64url(raw);
+    return 'S2p' + bytesToB64url(raw);
   }
   async function readBackupCode(code){
     code = (code || '').replace(/\s+/g, '');
-    const dot = code.indexOf('.');
-    const tag = code.slice(0, dot), body = code.slice(dot + 1);
-    let bytes = b64urlToBytes(body);
-    if(tag === 'SD1z'){
+    let data;
+    if(code.startsWith('S2p')){
+      data = unpackBoard(JSON.parse(new TextDecoder().decode(b64urlToBytes(code.slice(3)))));
+    } else if(code.startsWith('S2')){
       if(!window.DecompressionStream) throw new Error('unsupported');
-      const unzipped = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-      bytes = new Uint8Array(await new Response(unzipped).arrayBuffer());
-    } else if(tag !== 'SD1p'){
+      data = unpackBoard(JSON.parse(new TextDecoder().decode(await inflate(b64urlToBytes(code.slice(2))))));
+    } else if(code.startsWith('SD1z.') || code.startsWith('SD1p.')){
+      // older long codes still work
+      let bytes = b64urlToBytes(code.slice(5));
+      if(code[3] === 'z') bytes = await inflate(bytes);
+      data = JSON.parse(new TextDecoder().decode(bytes));
+    } else {
       throw new Error('bad code');
     }
-    const data = JSON.parse(new TextDecoder().decode(bytes));
     if(!data || data.app !== 'study-desk' || !Array.isArray(data.tasks)) throw new Error('bad code');
     return data;
   }
